@@ -283,9 +283,6 @@ class QtBotWithOnCloseRenaming(QtBot):
     `_find_dangling_widgets`: fixture that finds all widgets that have not
     been renamed to 'handled_widget'.
 
-    References
-    ----------
-    .. [1] https://czaki.github.io/blog/2024/09/16/preventing-segfaults-in-test-suite-that-has-qt-tests/
     """
 
     def addWidget(self, widget, *, before_close_func=None):
