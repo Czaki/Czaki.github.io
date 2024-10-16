@@ -17,13 +17,13 @@ tags:
 
 ## Motivation
 
-When providing an GUI application one needs to select GUI backend. 
-If application is Python and needs to work on all popular OSes[^1]
-the good choice is to use Qt. It is a cross-platform GUI toolkit that
+When providing a GUI application one needs to select a GUI backend. 
+If it is a Python application that needs to work on all popular OSes[^1],
+Qt is a good choice. It is a cross-platform GUI toolkit that
 has good python bindings[^2].
 
-However, the Qt objects require special care during testing. 
-It this post I will describe my experience of writing such tests based on 
+However, Qt objects require special care during testing. 
+In this post I will describe my experience of writing such tests based on 
 my work on [PartSeg](https://partseg.github.io/) 
 and [napari](https://napari.org/).
 
@@ -31,12 +31,12 @@ and [napari](https://napari.org/).
 
 ## The problem
 
-As the Qt is C++ library it does not know about python memory management.
-This mean that if Qt keep reference to some widget it does not increase reference
-count of python object. This can lead to situation when python object is deleted,
-but there is still event pending in Qt event loop that reference this object.
+As Qt is a C++ library it does not know about Python memory management.
+This means that if Qt keeps a reference to some widget it does not increase the reference
+count of python objects. This can lead to situations when the Python object is deleted,
+but there are still events pending in the Qt event loop that reference the object.
 
-When this happens Qt will try to access deleted object, leading to access to unallocated memory (segfault).
+When this happens Qt will try to access the deleted object, leading to access of unallocated memory (segfault).
 This is very hard to debug because segfault can occur in any subsequent
 test, making it unclear what the cause is.
 
@@ -46,10 +46,10 @@ The error messages vary across different operating systems:
 2. Linux `Segmentation fault (core dumped)` or `Fatal Python error: Aborted` 
 3. macOS `Fatal Python error: Segmentation fault`
 
-Moreover, this behavior is non-deterministic and may be not reproducible locally. 
-One of observed source of difference is that the CI runs on server version of OS. 
-I have encountered cases when I cannot reproduce the error on my development machine, 
-but I could do this on my server. 
+Moreover, this behavior is non-deterministic and may not be reproducible locally. 
+One of the observed sources of difference is that the CI runs on a server version of the OS. 
+I have encountered cases where I cannot reproduce the error on my development machine, 
+but I could on my server. 
 
 ### What is segfault
 
@@ -58,7 +58,7 @@ In such situations, the OS will kill the program to prevent corruption.
 For security reasons, the OS does not allow handling this error, as it may be caused by malicious code.
 
 An even worse scenario is when the addressed memory is allocated for a different object than the original pointer[^3] was pointing to.
-This can lead to modifying a different object in an unpredictable way, causing the test or program to fail unexpectedly.
+This can lead to unpredictably modifying a different object, causing the test or program to fail unexpectedly.
 
 ## How to prevent it
 
@@ -69,51 +69,50 @@ This section is based on my experience and may not be complete.
 All Qt objects have a [`deleteLater`](https://doc.qt.io/qt-6/qobject.html#deleteLater) method that schedules the object for deletion. 
 This allows for the safe deletion of the object, ensuring that all pending events are processed.
 
-If you use some widget in test, that is not child of any other widget, 
-you should call `deleteLater` on it before the test end.
+If you use some widget in your test that is not a child of any other widget, 
+you should call `deleteLater` on it before the test ends.
 It is also good practice to ensure that the widget is hidden before deletion. 
 So if your test requires showing the widget (e.g. screenshot test) you should hide it before deletion.
 
 When using `pytest` for testing I suggest using the `pytest-qt` plugin.
-This plugin provides `qtbot` fixture that can be used to interact with Qt objects.
+This plugin provides a `qtbot` fixture that can be used to interact with Qt objects.
 It also provides a [`qtbot.add_widget`](https://pytest-qt.readthedocs.io/en/latest/reference.html#pytestqt.qtbot.QtBot.addWidget) method that ensures `deleteLater` is called on the widget when the test ends.
 
-If your widget requires special teardown you can use `before_close_func` argument of `add_widget` method.
+If your widget requires special teardown you can use the `before_close_func` argument of the `add_widget` method.
 
-### Ensure all timers, animations or threads are stopped
+### Ensure all timers, animations and/or threads are stopped
 
 I have observed that not stopping [`QTimer`](https://doc.qt.io/qt-6/qtimer.html), 
-[`QPropertyAnimation`](https://doc.qt.io/qt-6/qpropertyanimation.html), [`QThread`](https://doc.qt.io/qt-6/qthread.html) or [`QThreadPool`](https://doc.qt.io/qt-6/qthreadpool.html) can lead to segfault.
-It may also lead to some other problems with test. 
+[`QPropertyAnimation`](https://doc.qt.io/qt-6/qpropertyanimation.html), [`QThread`](https://doc.qt.io/qt-6/qthread.html) or [`QThreadPool`](https://doc.qt.io/qt-6/qthreadpool.html) can lead to a segfault. It may also lead to some other problems with your test. 
 
-So if you use any of this objects in test you should ensure that they are stopped before test ends.
+So if you use any of these objects in your test you should ensure that they are stopped before the test ends.
 
 
 ### Use the smallest possible widgets for tests
 
-The process of setup and teardown of complex widgets is complex, time-consuming and may contain bugs that are hard to detect.
-So if the test purpose is to check behavior of some widget it is better to only create this widget, not the whole window that contains it.
+The process of setup and teardown of complex widgets is complex, time-consuming, and may contain bugs that are hard to detect.
+So if the test purpose is to check the behavior of some widget it is better to only create this widget, not the whole window that contains it.
 
 
 ## How to debug and prevent
 
-In this section I will describe my tricks used to debug and prevent segfaults. 
-However, it may not fit to all projects.
+In this section, I will describe my tricks used to debug and prevent segfaults. 
+However, it may not fit all projects.
 
 ### Run test under `gdb` or `lldb`
 
 If you could reproduce the segfault locally you can run the test under `gdb` or `lldb`.
-Then you could go through the stack trace and see what is the cause of segfault.
+Then you could go through the stack trace and see what is the cause of a segfault.
 
-There is also option to increase interpolation between `gdb` and python [https://docs.python.org/3/howto/gdb_helpers.html](https://docs.python.org/3/howto/gdb_helpers.html).
+There is also an option to increase interpolation between `gdb` and python [https://docs.python.org/3/howto/gdb_helpers.html](https://docs.python.org/3/howto/gdb_helpers.html).
 
-You may also build qt in debug mode and compile your python wrapper against it. It will provide more information in stack trace, but is complex and time-consuming.
+You may also build Qt in debug mode and compile your Python wrapper against it. It will provide more information in the stack trace, but is complex and time-consuming.
 
 
 ### Prevent `QThread` and `QTimer` from running
 
-Commonly, the test do not need to use threads. However, it may happen that integration test may trigger some thread. 
-It may be a good idea to fail the test if there is call of `QThread.start` method. I use following pytest fixture to do this:
+Commonly, tests do not need to use threads. However, an integration test may trigger some threads. 
+It may be a good idea to fail the test if there is a call of the `QThread.start` method. I use the following pytest fixture to do this:
 
 ```python
 @pytest.fixture(autouse=True)
@@ -141,10 +140,10 @@ def _block_threads(monkeypatch, request):
     monkeypatch.setattr(qt_api.QtCore, "QTimer", OldTimer)
 ```
 
-As you may see, there is option to allow thread usage by using custom `enablethread` marker. 
+As you may see, there is an option to allow thread usage by using the custom `enablethread` marker. 
 The documentation for declaring custom markers is available in [pytest documentation](https://docs.pytest.org/en/stable/example/markers.html#registering-markers).
 
-As documentation do not provide example for `pyproject.toml` I will provide example how to do this:
+As the documentation does not provide examples for `pyproject.toml` I will provide examples how to do this:
 ```toml
 [tool.pytest.ini_options]
 markers = [
@@ -153,19 +152,19 @@ markers = [
 ]
 ```
 
-You may also spot `monkeypatch.setattr(qt_api.QtCore, "QTimer", OldTimer)` line. It is added because `QTimer` is used internally in `pytest-qt` plugin for `qtbot.wait*` methods.
+You may also spot the `monkeypatch.setattr(qt_api.QtCore, "QTimer", OldTimer)` line. It is added because `QTimer` is used internally in the `pytest-qt` plugin for `qtbot.wait*` methods.
 
-In similar way you can block usage of `QPropertyAnimation`.
+In similar fashion, you can block usage of `QPropertyAnimation`.
 
-This approach raises exception when non-allowed method is called, so it is easy to prevent unwanted usage of threads.
-However it may increase hardness of contributing to project, as it is custom behavior, that potential contributor may not expect.
+This approach raises an exception when a non-allowed method is called, so it is easy to prevent unwanted usage of threads.
+However, it may increase the difficulty of contributing to a project, as it is a custom behavior, which potential contributors may not expect.
 
 
 ### Find active timers after test end
 
-In napari project we have developed a `pytest` fixtures that checks if there are any active `QTimers`, `QThreads`, `QThreadPool` and `QPropertyAnimation` after test end.
+In the napari project, we have developed a `pytest` fixture that checks if there are any active `QTimers`, `QThreads`, `QThreadPool` and `QPropertyAnimation` after the test ends.
 
-This method is not perfect as it may not be triggered at every test suite run. So problematic code may be detected after log time.
+This method is not perfect as it may not be triggered at every test suite run. So problematic code may be detected after a long time.
 
 ```python
 @pytest.fixture(auto_use=True)
@@ -223,49 +222,49 @@ def dangling_qthreads(monkeypatch, qtbot, request):
     )
 ```
 
-It is simplified version of napari fixture. 
-You may see full versions in [napari contest](https://github.com/napari/napari/blob/15c2d7d5ae7c607e3436800328527bd62c421896/napari/conftest.py#L444)
+It is a simplified version of the napari fixture. 
+You can see the full version in [napari contest](https://github.com/napari/napari/blob/15c2d7d5ae7c607e3436800328527bd62c421896/napari/conftest.py#L444)
 
-For other problematic objects you can use similar approach. There are proper fixtures in same [`conftest.py`](https://github.com/napari/napari/blob/15c2d7d5ae7c607e3436800328527bd62c421896/napari/conftest.py) file.
+For other problematic objects, you can use a similar approach. There are proper fixtures in the same [`conftest.py`](https://github.com/napari/napari/blob/15c2d7d5ae7c607e3436800328527bd62c421896/napari/conftest.py) file.
 
 
 ### Detect leaked widgets
 
 !!! note
-    If your test suite is small it may be much simpler to review all tests and check if all top level widgets are scheduled for deletion.
+    If your test suite is small it may be much simpler to review all tests and check if all top-level widgets are scheduled for deletion.
 
-With big test dataset it may be hard to detect if some widget is not scheduled for delete. 
+With big test datasets, it may be hard to detect if some widget is not scheduled for deletion. 
 
-This whole section is describing set of heuristics that may help to detect such widgets, but may also lead to false positives.
+This whole section describes a set of heuristics that may help to detect such widgets, but may also lead to false positives.
 If you use some custom, complex procedure for widget deletion you may need to adjust these heuristics or meet strange errors.
-This heuristic may report some widget after many test suite runs. It means that in previous test suite runs this widget was deleted by garbage collector, but in this run it was not.
+This heuristic may report some widgets after many test suite runs. It means that in the previous test suite runs, this widget was deleted by the garbage collector, but in this run it was not.
 
 !!! note 
-    If you are not expert in Qt and Python I strongly suggest to not write custom teardown procedure for widgets 
+    If you are not an expert in Qt and Python I strongly suggest not to write custom teardown procedures for widgets 
     and just use `qtbot.add_widget` method everywhere.
 
 #### `QApplication.topLevelWidgets`
 
-The Qt provides method [`QApplication.topLevelWidgets`](https://doc.qt.io/qt-6/qapplication.html#topLevelWidgets) that returns list of all top level widgets.
-It is nice place to start searching for leaked widgets. Hoverer it has some limitations:
+Qt provides the method [`QApplication.topLevelWidgets`](https://doc.qt.io/qt-6/qapplication.html#topLevelWidgets) that returns a list of all top level widgets.
+It is a nice place to start searching for leaked widgets. However, it has some limitations:
 
 1. It may create new python wrappers for widgets, so all methods that are monkeypatched or properties defined outside `__init__` method may not be available.
-2. Not all top level widgets are top level widgets that require teardown setup. For example, it returns `QMenu` objects that represents the main window menu bar.
-3. It returns all top level widgets, not only those that are created in test.
+2. Not all top level widgets are top level widgets that require teardown setup. For example, it returns `QMenu` objects that represent the main window menu bar.
+3. It returns all top level widgets, not only those that are created in the test.
 
 
-Based on above info we cannot use custom attribute to mark widget as handled without defining them in constructor. 
-However, all Qt Objects have `objectName` property that stored in C++ object and is not recreated in python wrapper.
-But it is also could be used by custom code or styling, so it is not perfect.
+Based on the above info we cannot use custom attributes to mark widgets as handled without defining them in aconstructor. 
+However, all Qt Objects have the `objectName` property that is stored as a C++ object and is not recreated in the python wrapper, though
+it also could be used by custom code or stylingand therefore it is not perfect.
 
-For code simplicity we will use `objectName` property to mark handled widgets.
-We will do this by subleasing `QtBot` class from `pytest-qt` plugin and overriding `addWidget` method.
+For code simplicity we will use the `objectName` property to mark handled widgets.
+We will do this by subleasing the `QtBot` class from the `pytest-qt` plugin and overriding the `addWidget` method.
 
-We will use fact that `qtbot.addWidget` allow for add custom teardown function that will be called before widget is deleted. 
-It is done by providing `before_close_func` argument to `addWidget` method. So if object added to `qtbot` 
-have `objectName` set to some value it could be changed in `before_close_func` function.
+We will use the fact that `qtbot.addWidget` allows for adding a custom teardown function that will be called before widget is deleted. 
+It is done by providing the `before_close_func` argument to the `addWidget` method. So if the object added to the `qtbot` 
+has the `objectName` set to some value it could be changed in the `before_close_func` function.
 
-We also need to define own `qtbot` fixture that will use our custom `QtBot` class.
+We also need to define our own `qtbot` fixture that will use our custom `QtBot` class.
 
 ```python
 from pytestqt.qtbot import QtBot
@@ -323,12 +322,12 @@ def qtbot(qapp, request):  # pragma: no cover
 
 !!! note
     As I expect that many readers of this blog post may be maintainers of napari plugins, 
-    the code bellow contains parts specific to the napari project. They are marked with a comment.
+    the code below contains parts specific to the napari project. These are marked with a comment.
     If you are not a napari plugin maintainer, you can remove these parts.
 
-The bellow fixture is implementing our heuristic to detect leaked widgets.
+The fixture below is implementing our heuristic to detect leaked widgets.
 It looks for all top level widgets that are not children of any other widget and have not been renamed to `handled_widget`.
-Then raises an exception with a list of such widgets.
+It then raises an exception with a list of such widgets.
 
 
 ```python
@@ -389,13 +388,13 @@ def _find_dangling_widgets(request, qtbot):
 
 ## Bonus tip
 
-### Test hanging due to nested event loop
+### Tests hanging due to nested event loop
 
-Your tests are hanging, but any above solution did not help. What to do?
+Your tests are hanging, but the above solutions did not help. What can you still do?
 
-One of the possible reason is that your code is created some nested event loop by opening [`QDialog`](https://doc.qt.io/qt-6/qdialog.html) 
-or [`QMessageBox`](https://doc.qt.io/qt-6/qmessagebox.html) using `exec` method. 
-To get error message instead of hanging test I use following pytest fixture:
+One of the possible reasons is that your code created some nested event loop by opening [`QDialog`](https://doc.qt.io/qt-6/qdialog.html) 
+or [`QMessageBox`](https://doc.qt.io/qt-6/qmessagebox.html) using the `exec` method. 
+To get an error message instead of hanging test I use the following pytest fixture:
 
 ```python
 import pytest
@@ -419,9 +418,9 @@ def _block_message_box(monkeypatch, request):
 
 ```
 
-As you can see I block multiple methods that can create nested event loop.
-In some test I need to allow calling `exec` method of `QDialog`,
-so I have defined `enabledialog` marker that I can use to allow this call.
+As you can see I block multiple methods that can create a nested event loop.
+In some tests I need to allow calling the `exec` method of `QDialog`,
+so I have defined the `enabledialog` flag that I can use to allow this call.
 
 
 ```python
