@@ -1,5 +1,5 @@
 ---
-date: 2023-09-29
+date: 2024-10-25
 categories:
   - GitHub
   - Testing
@@ -13,11 +13,18 @@ draft: true
 
 # Pinning Test Dependencies
 
+This note is about pinning CI dependencies for better CI stability. It is based on work done in the [napari](https://github.com/napari/napari) project
+
+<!-- more -->
+
 ## Motivation
 
 ### Guaranteeing test stability
 
-As one of the principal developers of the [napari](https://github.com/napari/napari) project, it is noteworthy to mention that at the time of writing, this project encompasses 36 direct dependencies and 116 total dependencies for minimum operational capability. In terms of testing, it utilizes 165 dependencies in total, while the assembly of documents requires up to 191 dependencies.
+I'm one of core developer of [napari](https://github.com/napari/napari) project. This Project has 35 direct dependencies and 116 total dependencies for minimum operational capability. For testing, it uses 188 dependencies in total, and for documentation assembly, it uses up to 224 dependencies. With such massive dependency chains, it's not uncommon for us to encounter broken tests due to updates in the dependencies.
+
+As open-source projects, we rely on the maintainers of these dependencies to ensure that their libraries are backward compatible. But we also understand that maintaining backward compatibility can be challenging, and sometimes backward incompatible changes are introduced by mistake.
+
 
 Given the substantial volume of these dependencies, there are instances where the maintainers of other libraries might unintentionally disrupt certain API in their packages during updates. These occasional or unintentional disruptions can cause unforeseen complications. On the other hand, there are times when such breakages are deliberate. Providing a backward compatibility layer can be tricky in these situations. Balancing the maintenance of deprecated APIs with both reasonable time constraints and performance requirements often proves unfeasible in the long run. These factors illuminated the need for us to commence pinning our test dependencies.
 
