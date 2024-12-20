@@ -25,6 +25,7 @@ markdown_extensions:
   - pymdownx.superfences
   - footnotes
 
+copyright: Content is licensed under a CC-BY 4.0 license.
 
 extra:
   social:
